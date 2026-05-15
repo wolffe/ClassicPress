@@ -10,6 +10,16 @@ module.exports = function( env = { environment: 'production', buildTarget: false
 	let buildTarget = env.buildTarget + '/wp-includes';
 
 	const WORDPRESS_NAMESPACE = '@wordpress/';
+	/**
+	 * Only packages whose entry module has an ECMAScript *default export* should use `export: 'default'`.
+	 * Named-export-only modules (hooks, url, i18n, a11y, …) must expose the webpack namespace object
+	 * on `window.wp.*` so callers get functions like `wp.url.addQueryArgs` and `wp.hooks.addAction`.
+	 */
+	const defaultExportPackages = new Set([
+		'api-fetch',
+		'dom-ready',
+	]);
+
 	const packages = Object.keys( dependencies )
 		.filter( ( packageName ) =>
  			packageName.startsWith( WORDPRESS_NAMESPACE )
@@ -21,11 +31,17 @@ module.exports = function( env = { environment: 'production', buildTarget: false
 		entry: packages.reduce( ( memo, packageName ) => {
 			memo[ packageName] = {
 				import: memo[ packageName ] = normalizeJoin( baseDir, `node_modules/@wordpress/${ packageName }` ),
-				library: {
-					name: ['wp', camelCaseDash( packageName ) ],
-					type: 'window',
-					export: undefined
-				}
+				library: defaultExportPackages.has( packageName )
+					? {
+						name: [ 'wp', camelCaseDash( packageName ) ],
+						type: 'window',
+						export: 'default',
+					}
+					: {
+						name: [ 'wp', camelCaseDash( packageName ) ],
+						type: 'window',
+						export: undefined,
+					}
 			};
 
 			return memo;
